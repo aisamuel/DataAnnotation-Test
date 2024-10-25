@@ -1,0 +1,64 @@
+`diff --git a/src/libs/ReportUtils.ts b/src/libs/ReportUtils.ts
+index 78ebdd92751..dd24cbfee8d 100644
+--- a/src/libs/ReportUtils.ts
++++ b/src/libs/ReportUtils.ts
+@@ -6172,13 +6172,16 @@ function shouldReportBeInOptionList({
+     // Optionally exclude reports that do not belong to currently active workspace
+ 
+     const parentReportAction = isThread(report) ? allReportActions?.[`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${report.parentReportID}`]?.[report.parentReportActionID] : undefined;
+-
++    const participantAccountIDs = Object.keys(report?.participants ?? {}).map(Number);
++    
+     if (
+         !report?.reportID ||
+         !report?.type ||
+         report?.reportName === undefined ||
+         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+         report?.isHidden ||
++        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
++        participantAccountIDs.includes(CONST.ACCOUNT_ID.NOTIFICATIONS) ||
+         (!report?.participants &&
+             // We omit sending back participants for chat rooms when searching for reports since they aren't needed to display the results and can get very large.
+             // So we allow showing rooms with no participants–in any other circumstances we should never have these reports with no participants in Onyx.
+diff --git a/src/libs/SidebarUtils.ts b/src/libs/SidebarUtils.ts
+index e120f7026fc..46d5ad59abb 100644
+--- a/src/libs/SidebarUtils.ts
++++ b/src/libs/SidebarUtils.ts
+@@ -11,6 +11,7 @@ import type PriorityMode from '@src/types/onyx/PriorityMode';
+ import type Report from '@src/types/onyx/Report';
+ import type ReportAction from '@src/types/onyx/ReportAction';
+ import type DeepValueOf from '@src/types/utils/DeepValueOf';
++import AccountUtils from './AccountUtils';
+ import * as CollectionUtils from './CollectionUtils';
+ import {hasValidDraftComment} from './DraftCommentUtils';
+ import localeCompare from './LocaleCompare';
+@@ -53,6 +54,14 @@ Onyx.connect({
+     },
+ });
+ 
++let currentUserAccountID: number | undefined;
++Onyx.connect({
++    key: ONYXKEYS.SESSION,
++    callback: (value) => {
++        currentUserAccountID = value?.accountID;
++    },
++});
++
+ function compareStringDates(a: string, b: string): 0 | 1 | -1 {
+     if (a < b) {
+         return -1;
+@@ -137,6 +146,13 @@ function getOrderedReportIDs(
+             return;
+         }
+ 
++        const participantAccountIDs = Object.keys(report?.participants ?? {}).map(Number);
++        const isOnboardedByPersona = currentUserAccountID && AccountUtils.isAccountIDOddNumber(currentUserAccountID) && participantAccountIDs.includes(CONST.ACCOUNT_ID.NOTIFICATIONS);
++
++        if (isOnboardedByPersona && isSystemChat && !isInFocusMode) {
++            return true;
++        }
++
+         if (
+             ReportUtils.shouldReportBeInOptionList({
+                 report,
+`
